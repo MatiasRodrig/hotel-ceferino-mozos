@@ -1,0 +1,12 @@
+{
+  "name": "Hotel Ceferino · Mozos",
+  "short_name": "Ceferino Mozos",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#08110d",
+  "theme_color": "#08110d",
+  "icons": [
+    { "src": "/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
