@@ -50,6 +50,7 @@ function AppMozo({ usuario, onLogout }: { usuario: Usuario; onLogout: () => void
 
   // UI
   const [verMesas, setVerMesas] = useState(false);
+  const [mesaPendienteCambio, setMesaPendienteCambio] = useState<Mesa | null>(null);
   const [verCarrito, setVerCarrito] = useState(false);
   const [productoOpciones, setProductoOpciones] = useState<Producto | null>(null);
   const [verTurno, setVerTurno] = useState(false);
@@ -222,6 +223,20 @@ function AppMozo({ usuario, onLogout }: { usuario: Usuario; onLogout: () => void
 
   const mesa = mesas.find(m => m.id === mesaId) ?? null;
   const totalItems = items.reduce((a, i) => a + i.cantidad, 0);
+  const tieneDatosComanda = items.length > 0 || observaciones.trim().length > 0 || esConsumoInterno;
+  const tieneComandaAbierta = Boolean(mesa && tieneDatosComanda);
+
+  const intentarElegirMesa = (nuevaMesa: Mesa) => {
+    if (mesa && nuevaMesa.id !== mesa.id && tieneDatosComanda) {
+      vibrar([80, 50, 80]);
+      setMesaPendienteCambio(nuevaMesa);
+      return;
+    }
+    vibrar(12);
+    setMesaId(nuevaMesa.id);
+    setVerMesas(false);
+  };
+
   const mesasConPedido = useMemo(() => new Set(
     comandas.filter(c => c.estado !== 'Anulada').map(c => mesas.find(m => m.codigo === c.mesaCodigo)?.id).filter((x): x is number => !!x)
   ), [comandas, mesas]);
@@ -482,9 +497,117 @@ function AppMozo({ usuario, onLogout }: { usuario: Usuario; onLogout: () => void
           mesas={mesas}
           seleccionada={mesa}
           mesasConPedido={mesasConPedido}
-          onElegir={m => { vibrar(12); setMesaId(m.id); setVerMesas(false); }}
+          tieneComandaAbierta={tieneComandaAbierta}
+          cantidadItemsAbiertos={totalItems}
+          onElegir={intentarElegirMesa}
           onClose={() => setVerMesas(false)}
         />
+      )}
+
+      {mesaPendienteCambio && mesa && (
+        <>
+          <div className="alert-backdrop" onClick={() => setMesaPendienteCambio(null)} />
+          <div className="alert-dialog" role="alertdialog" aria-modal="true" aria-labelledby="alerta-comanda-abierta-titulo">
+            <div className="alert-dialog-head">
+              <div className="alert-dialog-icon">
+                <AlertTriangle size={24} />
+              </div>
+              <div>
+                <h3 id="alerta-comanda-abierta-titulo">Comanda abierta en {mesa.codigo}</h3>
+                <p>No confirmaste el pedido antes de pasar a {mesaPendienteCambio.codigo}</p>
+              </div>
+            </div>
+
+            <div className="alert-dialog-body">
+              <p className="alert-dialog-msg">
+                Tenés una comanda con datos cargados en <b>{mesa.codigo}</b> sin confirmar. Si cambiás a <b>{mesaPendienteCambio.codigo}</b> ahora, podés olvidarte de enviarla o mezclar los pedidos.
+              </p>
+
+              <div className="alert-summary-box">
+                <div className="alert-summary-title">
+                  Pedido sin confirmar en {mesa.codigo}:
+                </div>
+                {items.length > 0 ? (
+                  <ul className="alert-summary-list">
+                    {items.map(i => (
+                      <li key={i.key}>
+                        <b>{i.cantidad}×</b> {i.producto.nombre}
+                        {i.opcionesTexto.length > 0 ? ` (${i.opcionesTexto.join(', ')})` : ''}
+                        {i.notas ? ` · “${i.notas}”` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="muted" style={{ fontSize: 13 }}>Sin productos agregados (con observaciones o consumo interno cargado).</div>
+                )}
+                {observaciones.trim() && (
+                  <div className="alert-summary-meta">Obs.: “{observaciones.trim()}”</div>
+                )}
+                {esConsumoInterno && (
+                  <div className="alert-summary-meta">
+                    Consumo interno{opcionConsumoInternoId ? `: ${opcionesConsumoInterno.find(o => o.id === opcionConsumoInternoId)?.nombre ?? ''}` : ''}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="alert-dialog-actions">
+              {items.length > 0 && (
+                <button
+                  className="btn btn-gold btn-block"
+                  onClick={() => {
+                    vibrar(12);
+                    setMesaPendienteCambio(null);
+                    setVerMesas(false);
+                    window.setTimeout(() => setVerCarrito(true), 320);
+                  }}
+                >
+                  Revisar y confirmar {mesa.codigo}
+                </button>
+              )}
+              <button
+                className="btn btn-ghost btn-block"
+                onClick={() => {
+                  vibrar(8);
+                  setMesaPendienteCambio(null);
+                  setVerMesas(false);
+                }}
+              >
+                Seguir cargando en {mesa.codigo}
+              </button>
+              <button
+                className="btn btn-ghost btn-sm btn-block"
+                onClick={() => {
+                  const destino = mesaPendienteCambio;
+                  vibrar(12);
+                  setMesaId(destino.id);
+                  setMesaPendienteCambio(null);
+                  setVerMesas(false);
+                  mostrar({ tipo: 'info', texto: `Pedido trasladado a ${destino.codigo}` }, 2600);
+                }}
+              >
+                Mover este pedido a {mesaPendienteCambio.codigo}
+              </button>
+              <button
+                className="btn btn-danger btn-sm btn-block"
+                onClick={() => {
+                  const destino = mesaPendienteCambio;
+                  vibrar(15);
+                  setItems([]);
+                  setObservaciones('');
+                  setEsConsumoInterno(false);
+                  setOpcionConsumoInternoId(null);
+                  setMesaId(destino.id);
+                  setMesaPendienteCambio(null);
+                  setVerMesas(false);
+                  mostrar({ tipo: 'info', texto: `Comanda anterior descartada · Ahora en ${destino.codigo}` }, 2800);
+                }}
+              >
+                Descartar {mesa.codigo} y comandar {mesaPendienteCambio.codigo}
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
       {productoOpciones && (

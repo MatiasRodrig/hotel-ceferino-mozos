@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { Sheet } from './Sheet';
 import type { Mesa } from '../api';
 
@@ -6,6 +7,8 @@ interface Props {
   mesas: Mesa[];
   seleccionada: Mesa | null;
   mesasConPedido: Set<number>;
+  tieneComandaAbierta?: boolean;
+  cantidadItemsAbiertos?: number;
   onElegir: (m: Mesa) => void;
   onClose: () => void;
 }
@@ -16,13 +19,31 @@ function corto(codigo: string) {
   return m ? m[1] : codigo;
 }
 
-export function MesaPicker({ mesas, seleccionada, mesasConPedido, onElegir, onClose }: Props) {
+export function MesaPicker({
+  mesas,
+  seleccionada,
+  mesasConPedido,
+  tieneComandaAbierta,
+  cantidadItemsAbiertos = 0,
+  onElegir,
+  onClose
+}: Props) {
   const esHab = (m: Mesa) => m.tipo.toLowerCase().startsWith('hab');
   const [tab, setTab] = useState<'salon' | 'hab'>(seleccionada && esHab(seleccionada) ? 'hab' : 'salon');
   const lista = mesas.filter(m => (tab === 'hab') === esHab(m));
 
   return (
     <Sheet titulo="¿Dónde es el pedido?" subtitulo="Elegí la mesa o habitación" onClose={onClose} full>
+      {tieneComandaAbierta && seleccionada && (
+        <div className="banner warn" style={{ margin: '0 0 14px 0', alignItems: 'flex-start' }}>
+          <AlertTriangle size={20} style={{ flexShrink: 0, marginTop: 1 }} />
+          <div className="grow" style={{ fontSize: 13 }}>
+            Tenés una comanda abierta sin confirmar en <b>{seleccionada.codigo}</b>
+            {cantidadItemsAbiertos > 0 ? ` (${cantidadItemsAbiertos} ${cantidadItemsAbiertos === 1 ? 'ítem' : 'ítems'})` : ''}.
+          </div>
+        </div>
+      )}
+
       <div className="segmented">
         <button className={tab === 'salon' ? 'active' : ''} onClick={() => setTab('salon')}>
           Salón · {mesas.filter(m => !esHab(m)).length}
